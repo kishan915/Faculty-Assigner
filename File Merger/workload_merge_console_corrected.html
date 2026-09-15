@@ -1,0 +1,1524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Workload Merge Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<style>
+  /* ============================================================
+     //LIGHT THEME
+     ============================================================ */
+  :root{
+    --bg:#F7F8FA;
+    --surface:#FFFFFF;
+    --card:#FFFFFF;
+    --card-hover:#F3F5F8;
+    --border:#E3E6EC;
+    --border-bright:#CBD1DC;
+    --text:#161B22;
+    --muted:#5B6472;
+    --muted-2:#8A93A3;
+    --accent:#2F6FED;
+    --accent-dim:#E8EFFE;
+    --success:#12875A;
+    --success-dim:#E6F4EE;
+    --error:#D0342C;
+    --error-dim:#FBEAE9;
+    --warn-dim:#FFF3DC;
+    --mono:'JetBrains Mono', ui-monospace, monospace;
+    --sans:'Inter', system-ui, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--sans);
+    min-height:100vh;
+    padding:56px 20px 80px;
+  }
+  .wrap{max-width:760px;margin:0 auto;}
+
+  /* header */
+  .eyebrow{
+    font-family:var(--mono);
+    font-size:12px;
+    letter-spacing:0.14em;
+    color:var(--accent);
+    text-transform:uppercase;
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin-bottom:14px;
+  }
+  .eyebrow .dot{width:6px;height:6px;border-radius:50%;background:var(--accent);}
+  h1{
+    font-family:var(--mono);
+    font-size:30px;
+    font-weight:700;
+    letter-spacing:-0.01em;
+    margin:0 0 12px;
+    line-height:1.15;
+    color:var(--text);
+  }
+  .sub{
+    color:var(--muted);
+    font-size:15px;
+    line-height:1.6;
+    max-width:580px;
+    margin:0 0 44px;
+  }
+  .sub b{color:var(--text);font-weight:600;}
+
+  /* section label */
+  .section-label{
+    font-family:var(--mono);
+    font-size:11px;
+    letter-spacing:0.12em;
+    text-transform:uppercase;
+    color:var(--muted-2);
+    margin:0 0 14px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  .section-label::after{content:'';flex:1;height:1px;background:var(--border);}
+
+  /* upload slots */
+  .slots{display:flex;flex-direction:column;gap:10px;margin-bottom:20px;}
+  .slot{
+    position:relative;
+    display:flex;
+    align-items:center;
+    gap:16px;
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:16px 18px;
+    cursor:pointer;
+    transition:border-color .15s ease, background .15s ease, box-shadow .15s ease;
+  }
+  .slot:hover{background:var(--card-hover);border-color:var(--border-bright);}
+  .slot.dragover{border-color:var(--accent);background:var(--accent-dim);}
+  .slot.filled{border-color:var(--success);background:var(--success-dim);}
+  .slot input{display:none;}
+  .slot-num{
+    font-family:var(--mono);
+    font-size:13px;
+    color:var(--muted-2);
+    width:28px;height:28px;
+    flex:0 0 28px;
+    border:1px solid var(--border-bright);
+    border-radius:6px;
+    display:flex;align-items:center;justify-content:center;
+    background:var(--surface);
+  }
+  .slot.filled .slot-num{color:var(--success);border-color:var(--success);}
+  .slot-body{flex:1;min-width:0;}
+  .slot-title-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:2px;}
+  .slot-title{font-size:14px;font-weight:600;color:var(--text);}
+  .tmpl-btn{
+    display:inline-flex;align-items:center;gap:5px;
+    font-family:var(--mono);font-size:11px;font-weight:600;
+    color:var(--accent);background:var(--accent-dim);
+    border:1px solid transparent;border-radius:6px;
+    padding:4px 9px;cursor:pointer;flex:0 0 auto;
+    transition:background .15s ease, border-color .15s ease;
+  }
+  .tmpl-btn:hover{background:#DCE7FD;border-color:var(--accent);}
+  .tmpl-btn svg{width:11px;height:11px;}
+  .slot-desc{font-family:var(--mono);font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .slot.filled .slot-desc{color:var(--success);}
+  .slot-status{
+    font-family:var(--mono);
+    font-size:11px;
+    color:var(--muted-2);
+    flex:0 0 auto;
+    border:1px solid var(--border-bright);
+    padding:3px 9px;
+    border-radius:20px;
+    background:var(--surface);
+  }
+  .slot.filled .slot-status{color:var(--success);border-color:var(--success);background:#fff;}
+
+  /* verify toggle */
+  .verify-toggle{
+    display:flex;align-items:flex-start;gap:10px;margin-bottom:28px;
+    font-family:var(--mono);font-size:12.5px;color:var(--muted);line-height:1.6;
+    background:var(--card); border:1px solid var(--border); border-radius:10px; padding:14px 16px;
+  }
+  .verify-toggle input{width:15px;height:15px;accent-color:var(--accent);margin-top:2px;flex:0 0 auto;}
+
+  /* run button */
+  .run-row{display:flex;align-items:center;gap:14px;margin-bottom:36px;}
+  .run-btn{
+    font-family:var(--mono);
+    font-weight:600;
+    font-size:14px;
+    letter-spacing:0.02em;
+    background:var(--accent);
+    color:#FFFFFF;
+    border:none;
+    border-radius:9px;
+    padding:14px 24px;
+    cursor:pointer;
+    transition:transform .1s ease, box-shadow .15s ease, opacity .15s, background .15s;
+  }
+  .run-btn:hover:not(:disabled){background:#2559C9;box-shadow:0 4px 16px rgba(47,111,237,0.28);transform:translateY(-1px);}
+  .run-btn:active:not(:disabled){transform:translateY(0);}
+  .run-btn:disabled{background:var(--border);color:var(--muted-2);cursor:not-allowed;}
+  .run-hint{font-size:12px;color:var(--muted-2);font-family:var(--mono);}
+
+  /* log console */
+  .console{
+    background:#0F131A;
+    border:1px solid var(--border);
+    border-radius:10px;
+    font-family:var(--mono);
+    font-size:12.5px;
+    line-height:1.9;
+    padding:18px 20px;
+    min-height:64px;
+    max-height:300px;
+    overflow-y:auto;
+    color:#9AA5B5;
+    display:none;
+  }
+  .console.show{display:block;}
+  .log-line{opacity:0;animation:logIn .2s ease forwards;display:flex;gap:10px;}
+  .log-line .t{color:#5B6472;flex:0 0 auto;}
+  .log-line .ok{color:#4ADE9A;}
+  .log-line .warn{color:#FBBF24;}
+  .log-line .err{color:#F87171;}
+  @keyframes logIn{from{opacity:0;transform:translateY(2px);}to{opacity:1;transform:translateY(0);}}
+
+  /* results */
+  .results{display:none;margin-top:28px;}
+  .results.show{display:block;}
+  .stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px;}
+  .stat{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;}
+  .stat-num{font-family:var(--mono);font-size:22px;font-weight:700;color:var(--text);}
+  .stat-num.flag{color:var(--error);}
+  .stat-num.fix{color:#B7791F;}
+  .stat-label{font-size:11px;color:var(--muted);margin-top:4px;text-transform:uppercase;letter-spacing:0.06em;}
+  .download-btn{
+    width:100%;
+    font-family:var(--mono);
+    font-weight:600;
+    font-size:14px;
+    background:var(--success-dim);
+    color:var(--success);
+    border:1px solid var(--success);
+    border-radius:9px;
+    padding:16px;
+    cursor:pointer;
+    display:flex;align-items:center;justify-content:center;gap:10px;
+    transition:background .15s ease;
+  }
+  .download-btn:hover{background:#D5EFE3;}
+  .download-btn svg{width:16px;height:16px;}
+  .download-btn:disabled{opacity:0.5;cursor:not-allowed;}
+
+  .error-banner{
+    display:none;
+    background:var(--error-dim);
+    border:1px solid var(--error);
+    color:#8F241E;
+    border-radius:10px;
+    padding:14px 16px;
+    font-size:13px;
+    margin-top:16px;
+    font-family:var(--mono);
+    line-height:1.6;
+  }
+  .error-banner.show{display:block;}
+  .warn-note{
+    font-family:var(--mono);font-size:11.5px;color:#8A5A00;margin-top:12px;line-height:1.6;
+    background:var(--warn-dim); border:1px solid #F0D28A; border-radius:8px; padding:10px 12px;
+  }
+
+  /* legend */
+  .legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:14px;font-family:var(--mono);font-size:11px;color:var(--muted);}
+  .legend span{display:inline-flex;align-items:center;gap:6px;}
+  .swatch{width:11px;height:11px;border-radius:3px;display:inline-block;border:1px solid var(--border-bright);}
+  .swatch.red{background:#FFC7CE;}
+  .swatch.yellow{background:#FFFF00;}
+
+  footer{margin-top:56px;font-size:12px;color:var(--muted-2);font-family:var(--mono);text-align:center;}
+
+  @media (max-width:600px){
+    .stat-grid{grid-template-columns:repeat(2,1fr);}
+    h1{font-size:24px;}
+  }
+  /* ===== Creator Credit ===== */
+.creator-credit {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin: 18px auto 28px;
+    font-family: var(--sans);
+    color: var(--muted);
+}
+
+.creator-credit-line {
+    width: 70px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border-bright));
+}
+
+.creator-credit-line.right {
+    background: linear-gradient(90deg, var(--border-bright), transparent);
+}
+
+.creator-credit-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 15px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+    box-shadow: 0 5px 16px rgba(22, 27, 34, 0.07);
+    font-size: 12px;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+}
+
+.creator-credit-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 0 4px var(--accent-dim);
+}
+
+.creator-credit-name {
+    color: var(--text);
+    font-weight: 650;
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="eyebrow"><span class="dot"></span>NO LOGIN &middot; NO DATABASE &middot; RUNS IN YOUR BROWSER</div>
+  <h1>Workload Merge Console</h1>
+  <p class="sub">Upload the three source workbooks — <b>coordinators</b>, <b>subject faculty</b>, and <b>workload</b> — plus an optional <b>M.Tech scheme</b> file. Subject codes are normalized (the common <b>I↔1</b> mix-up), auto-corrected when a typo is within one character of exactly one official code, and Subject Name is replaced with the official UPPERCASE name wherever a code is confidently verified. Unresolvable codes are highlighted <b>red</b>; auto-corrected ones <b>yellow</b>. You get back one flat <b>final_input.xlsx</b> — no grouping.</p>
+
+  <div class="section-label">Source files</div>
+  <div class="slots">
+    <div class="slot" id="slot-coord" data-key="coord">
+      <input type="file" accept=".xlsx,.xls" id="file-coord">
+      <div class="slot-num">01</div>
+      <div class="slot-body">
+        <div class="slot-title-row">
+          <div class="slot-title">Course coordinators</div>
+          <button type="button" class="tmpl-btn" data-key="coord">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v11m0 0l-4-4m4 4l4-4M4 21h16"/></svg>
+            Template
+          </button>
+        </div>
+        <div class="slot-desc" id="desc-coord">Stream · Subject code · Subject Coordinator — drop or click</div>
+      </div>
+      <div class="slot-status" id="status-coord">waiting</div>
+    </div>
+
+    <div class="slot" id="slot-faculty" data-key="faculty">
+      <input type="file" accept=".xlsx,.xls" id="file-faculty">
+      <div class="slot-num">02</div>
+      <div class="slot-body">
+        <div class="slot-title-row">
+          <div class="slot-title">Subject faculty list</div>
+          <button type="button" class="tmpl-btn" data-key="faculty">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v11m0 0l-4-4m4 4l4-4M4 21h16"/></svg>
+            Template
+          </button>
+        </div>
+        <div class="slot-desc" id="desc-faculty">Subject full name · Lecture / Lab faculty — drop or click</div>
+      </div>
+      <div class="slot-status" id="status-faculty">waiting</div>
+    </div>
+
+    <div class="slot" id="slot-workload" data-key="workload">
+      <input type="file" accept=".xlsx,.xls" id="file-workload">
+      <div class="slot-num">03</div>
+      <div class="slot-body">
+        <div class="slot-title-row">
+          <div class="slot-title">Workload sheet</div>
+          <button type="button" class="tmpl-btn" data-key="workload">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v11m0 0l-4-4m4 4l4-4M4 21h16"/></svg>
+            Template
+          </button>
+        </div>
+        <div class="slot-desc" id="desc-workload">Employee · Code of subject · Theory / Practical / Tutorial — drop or click</div>
+      </div>
+      <div class="slot-status" id="status-workload">waiting</div>
+    </div>
+  </div>
+
+  <div class="section-label">Optional source</div>
+  <div class="slots">
+    <div class="slot" id="slot-mtech" data-key="mtech">
+      <input type="file" accept=".xlsx,.xls" id="file-mtech">
+      <div class="slot-num">04</div>
+      <div class="slot-body">
+        <div class="slot-title-row">
+          <div class="slot-title">M.Tech subject scheme <span style="font-weight:400;color:var(--muted-2);">(optional)</span></div>
+          <button type="button" class="tmpl-btn" data-key="mtech">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v11m0 0l-4-4m4 4l4-4M4 21h16"/></svg>
+            Template
+          </button>
+        </div>
+        <div class="slot-desc" id="desc-mtech">Subject Code · Subject Name · Semester · Stream — used to verify/name M.Tech-scope codes</div>
+      </div>
+      <div class="slot-status" id="status-mtech">waiting</div>
+    </div>
+  </div>
+
+  <label class="verify-toggle">
+    <input type="checkbox" id="verifyToggle" checked>
+    <span>Verify &amp; auto-correct subject codes, and replace Subject Name with the official name in UPPERCASE. <b>M.Tech-scope codes</b> (starting with "3") are checked against the uploaded scheme file first, falling back to the web source below if not found there. <b>B.Tech-scope codes</b> are checked against the official list at <b>uvpce.guni.ac.in</b> (Academic → CE / IT / CE-AI / CSBS → Syllabus Scheme). This calls the college site directly from your browser — some networks or the site's own bot-protection may block it, in which case the tool falls back to a bundled code snapshot (no official names available from that snapshot) and clearly tells you which departments it couldn't confirm live.</span>
+  </label>
+
+  <div class="run-row">
+    <button class="run-btn" id="runBtn" disabled>Run pipeline</button>
+    <span class="run-hint" id="runHint">upload the 3 required files to enable</span>
+  </div>
+  <!-- ===== Creator Credit ===== -->
+<div class="creator-credit">
+    <span class="creator-credit-line"></span>
+
+    <div class="creator-credit-badge">
+        <span class="creator-credit-dot"></span>
+
+        <span>
+            Created by
+            <span class="creator-credit-name">Kishan Kumar</span>
+            &amp;
+            <span class="creator-credit-name">Kavy Singh Solanki</span>
+        </span>
+    </div>
+
+    <span class="creator-credit-line right"></span>
+</div>
+
+  <div class="console" id="console"></div>
+  <div class="error-banner" id="errorBanner"></div>
+
+  <div class="results" id="results">
+    <div class="section-label">final_input.xlsx</div>
+    <div class="stat-grid" id="statGrid"></div>
+    <button class="download-btn" id="downloadBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v13m0 0l-5-5m5 5l5-5M4 21h16"/></svg>
+      Download final_input.xlsx
+    </button>
+    <div class="legend">
+      <span><span class="swatch yellow"></span>auto-corrected code</span>
+      <span><span class="swatch red"></span>could not be verified — left as-is</span>
+    </div>
+    <div class="warn-note" id="warnNote" style="display:none;"></div>
+  </div>
+
+  <footer>merge + normalization run entirely client-side — reload to start over</footer>
+</div>
+
+<script>
+/* ============================================================
+   PREPROCESSING HELPERS (ported 1:1 from the Python pipeline)
+   ============================================================ */
+const NON_NAME_COORDINATOR_VALUES = new Set(['OTHER DEPARTMENT','GUIDE','']);
+const PLACEHOLDER_RE = /^(NF\d+|EXPERT-?\d*|L\d+|\d+)$/i;
+const FUZZY_CUTOFF = 0.82;
+
+function cleanFacultyName(raw){
+  if(raw===null||raw===undefined) return null;
+  let s=String(raw).trim();
+  if(s===''||s==='-'||s==='0') return null;
+  s=s.replace(/\s*\([^)]*\)\s*$/,'').trim();
+  s=s.replace(/^[A-Za-z]{1,6}-/,'').trim();
+  s=s.replace(/-\s*(EXPERT|EXP)\s*$/i,'').trim();
+  s=s.replace(/^(Dr\.?|Prof\.?)\s+/i,'').trim();
+  s=s.replace(/\s+/g,' ').trim();
+  return s? s.toUpperCase() : null;
+}
+function isPlaceholder(name){ return name===null || PLACEHOLDER_RE.test(name); }
+
+// "TA- Faculty" (and variants like "TA-Faculty", "TA- Faculty (temp)") is a
+// placeholder for an unassigned teaching-assistant slot, not a real person.
+// It must be caught on the RAW value, before cleanFacultyName runs — the
+// generic dept-code-prefix stripper treats "TA-" as a prefix like "ICT-" and
+// would otherwise strip it down to a bare "FACULTY" that silently survives
+// into the output. Any row/entry containing "TA-" is dropped entirely.
+function isTAPlaceholder(raw){
+  if(raw===null||raw===undefined) return false;
+  const s = String(raw).trim().toUpperCase();
+  if(!s) return false;
+  return s.includes('TA-');
+}
+function extractCode(raw){
+  if(raw===null||raw===undefined) return null;
+  const s=String(raw).trim().toUpperCase();
+  const m=s.match(/^([A-Z0-9]+)/);
+  return m? m[1] : null;
+}
+function matchKey(code){ return code===null? null : code.split('I').join('1'); }
+function splitStreams(raw){
+  if(raw===null||raw===undefined) return [];
+  let s=String(raw).trim();
+  s=s.split('CE/IT').join('CE\x01IT');
+  const parts=s.split('/').filter(p=>p).map(p=>p.split('\x01').join('/'));
+  return [...new Set(parts)];
+}
+function parseSubjectFull(raw){
+  const s=String(raw).trim();
+  const code=extractCode(s);
+  const m=s.match(/\(([^)]*)\)/);
+  const abbrev=m? m[1].trim() : null;
+  return [code,abbrev];
+}
+function levenshtein(a,b){
+  const m=a.length,n=b.length;
+  const dp=Array.from({length:m+1},()=>new Array(n+1).fill(0));
+  for(let i=0;i<=m;i++) dp[i][0]=i;
+  for(let j=0;j<=n;j++) dp[0][j]=j;
+  for(let i=1;i<=m;i++) for(let j=1;j<=n;j++){
+    dp[i][j] = a[i-1]===b[j-1] ? dp[i-1][j-1] : 1+Math.min(dp[i-1][j-1],dp[i-1][j],dp[i][j-1]);
+  }
+  return dp[m][n];
+}
+function similarity(a,b){
+  const maxLen=Math.max(a.length,b.length);
+  if(maxLen===0) return 1;
+  return 1 - levenshtein(a,b)/maxLen;
+}
+function fuzzyResolve(name, pool, cutoff=FUZZY_CUTOFF){
+  if(pool.includes(name)) return name;
+  let best=null, bestScore=0;
+  for(const p of pool){
+    const sc=similarity(name,p);
+    if(sc>bestScore){bestScore=sc;best=p;}
+  }
+  if(best && bestScore>=cutoff) return best;
+  const starts=pool.filter(p=>p.startsWith(name)||name.startsWith(p));
+  if(starts.length){ starts.sort((a,b)=>a.length-b.length); return starts[0]; }
+  return name;
+}
+
+/* ============================================================
+   FILE PARSERS
+   ============================================================ */
+function pickSheet(workbook, preferredRegex, avoidRegex){
+  const names = workbook.SheetNames;
+  let hit = names.find(n=>preferredRegex.test(n));
+  if(hit) return hit;
+  if(avoidRegex){
+    hit = names.find(n=>!avoidRegex.test(n));
+    if(hit) return hit;
+  }
+  return names[0];
+}
+function sheetToRows(workbook, sheetName){
+  const ws = workbook.Sheets[sheetName];
+  return XLSX.utils.sheet_to_json(ws, {header:1, defval:null, raw:true});
+}
+
+function loadCoord(workbook){
+  const sheetName = pickSheet(workbook, /coordinat/i);
+  const rows = sheetToRows(workbook, sheetName);
+  const data = rows.slice(1);
+  const out=[];
+  for(const row of data){
+    if(!row) continue;
+    const code = extractCode(row[2]);
+    if(!code || !/^\d/.test(code)) continue;
+    const streams = splitStreams(row[1]);
+    const coordRaw = row[3];
+    const coordNames=[];
+    if(coordRaw!==null && coordRaw!==undefined && String(coordRaw).trim()!==''){
+      for(const part of String(coordRaw).split('/')){
+        const p=part.trim();
+        if(NON_NAME_COORDINATOR_VALUES.has(p.toUpperCase())) continue;
+        if(isTAPlaceholder(p)) continue;
+        const cn=cleanFacultyName(p);
+        if(cn) coordNames.push(cn);
+      }
+    }
+    for(const st of streams){
+      if(coordNames.length){
+        for(const cn of coordNames) out.push({stream:st, code, mkey:matchKey(code), coordinator:cn});
+      } else {
+        out.push({stream:st, code, mkey:matchKey(code), coordinator:null});
+      }
+    }
+  }
+  return {sheetName, rows: out, rawCount: data.length};
+}
+
+function loadWorkload(workbook){
+  const sheetName = pickSheet(workbook, /workload/i);
+  const rows = sheetToRows(workbook, sheetName);
+  // rows[0] = main header, rows[1] = Theory/Practical/Tutorial sub-header, rows[2:] = data
+  const data = rows.slice(2);
+  let lastName=null;
+  const raw=[];
+  for(const row of data){
+    if(!row) continue;
+    let nameRaw = row[3];
+    if(nameRaw===null||nameRaw===undefined||String(nameRaw).trim()===''){
+      nameRaw = lastName;
+    } else {
+      lastName = nameRaw;
+    }
+    const code = extractCode(row[5]);
+    if(!code) continue;
+    if(isTAPlaceholder(nameRaw)) continue;
+    const fname = cleanFacultyName(nameRaw);
+    if(isPlaceholder(fname)) continue;
+    const theory = (row[8]===null||row[8]===undefined||row[8]==='') ? 0 : parseFloat(row[8]);
+    const lab    = (row[9]===null||row[9]===undefined||row[9]==='') ? 0 : parseFloat(row[9]);
+    const tut    = (row[10]===null||row[10]===undefined||row[10]==='') ? 0 : parseFloat(row[10]);
+    raw.push({faculty:fname, code, mkey:matchKey(code), theory: theory+tut, lab});
+  }
+  const aggMap = new Map();
+  for(const r of raw){
+    const key = r.faculty+'||'+r.mkey;
+    if(!aggMap.has(key)) aggMap.set(key, {faculty:r.faculty, mkey:r.mkey, code:r.code, theory:0, lab:0});
+    const a=aggMap.get(key);
+    a.theory += r.theory; a.lab += r.lab;
+  }
+  return {sheetName, rows:[...aggMap.values()], rawCount: data.length};
+}
+
+function loadSubjectFaculty(workbook){
+  const sheetName = pickSheet(workbook, /subject\s*faculty/i, /workload/i);
+  const rows = sheetToRows(workbook, sheetName);
+  const data = rows.slice(1);
+  const subjNameMap = {};
+  const facRows = [];
+  for(const row of data){
+    if(!row) continue;
+    const raw = row[0];
+    if(raw===null||raw===undefined) continue;
+    const [code, abbrev] = parseSubjectFull(raw);
+    if(!code) continue;
+    const mk = matchKey(code);
+    if(abbrev) subjNameMap[mk] = abbrev;
+    for(const colIdx of [1,2]){
+      const val = row[colIdx];
+      if(val===null||val===undefined) continue;
+      for(const part of String(val).split(',')){
+        if(isTAPlaceholder(part)) continue;
+        const fn = cleanFacultyName(part);
+        if(fn && !isPlaceholder(fn)) facRows.push({faculty:fn, mkey:mk, code});
+      }
+    }
+  }
+  return {sheetName, subjNameMap, facRows, rawCount: data.length};
+}
+
+/* ============================================================
+   MERGE  (flat output — no subject-wise grouping)
+   ============================================================ */
+function buildFinalInput(coordRows, wlAgg, subjNameMap, facRows, log){
+  const canonicalPool = [...new Set([...wlAgg.map(r=>r.faculty), ...facRows.map(r=>r.faculty)])];
+
+  let fuzzyFixes = 0;
+  const coordResolved = coordRows.map(r=>{
+    if(r.coordinator===null) return {...r, coordinator_resolved:null};
+    const resolved = fuzzyResolve(r.coordinator, canonicalPool);
+    if(resolved !== r.coordinator) fuzzyFixes++;
+    return {...r, coordinator_resolved: resolved};
+  });
+  log(`resolved ${fuzzyFixes} coordinator-name variant${fuzzyFixes===1?'':'s'} via fuzzy match`, 'ok');
+
+  const mkeyToStreams = new Map();
+  const mkeyToCoords = new Map();
+  for(const r of coordResolved){
+    if(!mkeyToStreams.has(r.mkey)) mkeyToStreams.set(r.mkey, new Set());
+    mkeyToStreams.get(r.mkey).add(r.stream);
+    if(r.coordinator_resolved){
+      if(!mkeyToCoords.has(r.mkey)) mkeyToCoords.set(r.mkey, new Set());
+      mkeyToCoords.get(r.mkey).add(r.coordinator_resolved);
+    }
+  }
+
+  const seen = new Set();
+  const finalRows = [];
+  function addRow(stream, code, mkey, faculty, isCoord, theory, lab){
+    const key = stream+'||'+code+'||'+faculty;
+    if(seen.has(key)) return;
+    seen.add(key);
+    const subjName = subjNameMap[mkey] || code;
+    finalRows.push({
+      'Stream': stream, 'Subject code': code, 'Subject Name': subjName,
+      'Faculty name': faculty, 'Is Coordinator': isCoord,
+      'Theory Workload': theory, 'Lab Workload': lab, 'Total Workload': theory+lab
+    });
+  }
+
+  let unspecified = 0;
+  for(const r of wlAgg){
+    let streams = mkeyToStreams.has(r.mkey) ? [...mkeyToStreams.get(r.mkey)] : null;
+    if(!streams){ streams=['UNSPECIFIED']; unspecified++; }
+    const coordsForSubject = mkeyToCoords.get(r.mkey) || new Set();
+    for(const st of streams){
+      const isCoord = coordsForSubject.has(r.faculty);
+      addRow(st, r.code, r.mkey, r.faculty, isCoord, r.theory, r.lab);
+    }
+  }
+  if(unspecified>0) log(`${unspecified} workload row(s) had no stream mapping — tagged UNSPECIFIED`, 'warn');
+
+  let coordOnly = 0;
+  for(const [mkey, coords] of mkeyToCoords.entries()){
+    const rowsForMkey = coordResolved.filter(r=>r.mkey===mkey);
+    for(const cr of rowsForMkey){
+      const cn = cr.coordinator_resolved;
+      if(!cn) continue;
+      const key = cr.stream+'||'+cr.code+'||'+cn;
+      if(!seen.has(key)){
+        addRow(cr.stream, cr.code, mkey, cn, true, 0, 0);
+        coordOnly++;
+      }
+    }
+  }
+  if(coordOnly>0) log(`added ${coordOnly} coordinator-only row(s) with no matching workload hours`, 'warn');
+
+  finalRows.sort((a,b)=>{
+    if(a['Stream']!==b['Stream']) return a['Stream']<b['Stream']?-1:1;
+    if(a['Subject code']!==b['Subject code']) return a['Subject code']<b['Subject code']?-1:1;
+    return (b['Is Coordinator']===true)-(a['Is Coordinator']===true);
+  });
+
+  return finalRows;
+}
+
+/* ============================================================
+   SUBJECT CODE VERIFICATION + AUTO-CORRECTION
+
+   SOURCE RULES:
+   1. M.Tech (code starts with 3) -> uploaded M.Tech Excel ONLY.
+   2. B.Tech -> official UVPCE website ONLY.
+   3. Valid / corrected code -> Subject Name is replaced by the
+      official name in UPPERCASE.
+   4. Unmatched code -> original Excel code AND original Subject Name
+      are kept unchanged.
+   5. No bundled/cache subject-code source is used.
+   ============================================================ */
+const BASE_URL = 'https://uvpce.guni.ac.in';
+const DEPARTMENT_URLS = {
+  'CE': {
+    UG: `${BASE_URL}/programmes/after-12th-programs-undergraduate-programs/engineering-technology/bachelor-of-technology-in-computer-engineering/syllabus`,
+  },
+  'CE-AI': {
+    UG: `${BASE_URL}/programmes/after-12th-programs-undergraduate-programs/engineering-technology/bachelor-of-technology-in-computer-engineering-artificial-intelligence/syllabus`,
+  },
+  'CSBS': {
+    UG: `${BASE_URL}/programmes/after-12th-programs-undergraduate-programs/engineering-technology/btech-computer-science-and-business-systems/syllabus`,
+  },
+};
+
+/* CE and IT use the CE syllabus source. */
+const STREAM_TO_DEPARTMENTS = {
+  'CE/IT': ['CE'],
+  'CE-AI': ['CE-AI'],
+  'CSBS': ['CSBS'],
+};
+const ALL_DEPARTMENTS = Object.keys(DEPARTMENT_URLS);
+
+const CODE_PREFIX_TO_DEPARTMENTS = [
+  [/^\d+CEIT/, ['CE']],
+  [/^\d+CEAI/, ['CE-AI']],
+  [/^\d+CSBS/, ['CSBS']],
+];
+
+function departmentsForCode(code){
+  if(!code) return ALL_DEPARTMENTS;
+  for(const [re, depts] of CODE_PREFIX_TO_DEPARTMENTS){
+    if(re.test(code)) return depts;
+  }
+  return ALL_DEPARTMENTS;
+}
+
+function normalizeCode(raw){
+  if(raw===null || raw===undefined) return null;
+  let s = String(raw).normalize('NFKC');
+  s = s.replace(/[\u200B-\u200D\uFEFF\u00AD]/g, '');
+  s = s.replace(/[\u2010-\u2015\u2212]/g, '-');
+  s = s.trim().toUpperCase();
+  s = s.replace(/\s+/g, '');
+  s = s.replace(/[^A-Z0-9-]/g, '');
+  if(!s || !/^[A-Z0-9]/.test(s)) return null;
+  return s;
+}
+
+/* ============================================================
+   EXTRACT CODE + OFFICIAL SUBJECT NAME FROM WEBSITE TABLES
+   ============================================================ */
+function extractSubjectsFromHtml(html){
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const subjects = new Map();
+
+  for(const table of doc.querySelectorAll('table')){
+    const headers = [...table.querySelectorAll('th')].map(th =>
+      th.textContent.replace(/\s+/g, ' ').trim().toLowerCase()
+    );
+
+    let codeCol = headers.findIndex(h =>
+      h.includes('subject') && h.includes('code')
+    );
+    let nameCol = headers.findIndex(h =>
+      h.includes('subject') && h.includes('name')
+    );
+
+    if(codeCol === -1){
+      codeCol = headers.findIndex(h =>
+        h === 'code' || h.includes('code')
+      );
+    }
+    if(nameCol === -1){
+      nameCol = headers.findIndex(h =>
+        h === 'name' || h.includes('name')
+      );
+    }
+
+    /* Known UVPCE table fallback for Subject Code. */
+    if(codeCol === -1) codeCol = 2;
+
+    /* If no explicit name header exists, use the column beside Code. */
+    if(nameCol === -1){
+      nameCol = codeCol > 0 ? codeCol - 1 : codeCol + 1;
+    }
+
+    for(const row of table.querySelectorAll('tr')){
+      const cells = [...row.querySelectorAll('td')];
+      if(cells.length <= codeCol || cells.length <= nameCol) continue;
+
+      const code = normalizeCode(cells[codeCol].textContent);
+      if(!code || code === 'NA' || code.length <= 1) continue;
+
+      let name = cells[nameCol].textContent
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      if(!name || name.toUpperCase() === 'NA') continue;
+
+      name = name.toUpperCase();
+
+      if(!subjects.has(code)){
+        subjects.set(code, name);
+      }
+    }
+  }
+
+  return subjects;
+}
+
+const FETCH_TIMEOUT_MS = 15000;
+const FETCH_MAX_ATTEMPTS = 2;
+const FETCH_RETRY_DELAY_MS = 1200;
+
+async function fetchDeptPage(url, log){
+  /*
+   * IMPORTANT:
+   * The UVPCE website does not permit browser-side CORS requests from a
+   * local HTML file. That is why the old version produced 303 skipped rows.
+   *
+   * The verification request now goes through the local Node server at
+   * /official. The server fetches the ORIGINAL UVPCE URL server-side and
+   * returns the official page HTML. No cached subject-code list is used.
+   */
+  const endpoint =
+    (location.protocol === 'file:')
+      ? `http://localhost:8787/official?url=${encodeURIComponent(url)}`
+      : `/official?url=${encodeURIComponent(url)}`;
+
+  for(let attempt=1; attempt<=FETCH_MAX_ATTEMPTS; attempt++){
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+
+    try{
+      const resp = await fetch(endpoint, {
+        method:'GET',
+        cache:'no-store',
+        signal:controller.signal
+      });
+
+      clearTimeout(timer);
+
+      if(!resp.ok){
+        const detail = await resp.text().catch(()=>'');
+        throw new Error(`official fetch HTTP ${resp.status}${detail ? `: ${detail}` : ''}`);
+      }
+
+      const html = await resp.text();
+
+      if(!html || html.length < 500){
+        throw new Error('official page returned empty/too-small content');
+      }
+
+      return html;
+
+    }catch(err){
+      clearTimeout(timer);
+
+      const reason = err.name === 'AbortError'
+        ? `timed out after ${FETCH_TIMEOUT_MS/1000}s`
+        : err.message;
+
+      log(
+        `could not fetch official UVPCE page ${url} ` +
+        `(attempt ${attempt}/${FETCH_MAX_ATTEMPTS}): ${reason}`,
+        'warn'
+      );
+    }
+
+    if(attempt < FETCH_MAX_ATTEMPTS){
+      await sleep(FETCH_RETRY_DELAY_MS);
+    }
+  }
+
+  return null;
+}
+
+/* ============================================================
+   B.TECH MASTER LIST
+   Official website is the ONLY source.
+   Map: department -> Map(code, officialName)
+   ============================================================ */
+async function buildMasterList(log){
+  const validByDept = {};
+  const deptState = {};
+
+  for(const [dept, levels] of Object.entries(DEPARTMENT_URLS)){
+    const deptSubjects = new Map();
+    let allLevelsOk = true;
+
+    for(const [level, url] of Object.entries(levels)){
+      log(`fetching official ${dept} ${level} syllabus…`);
+      const html = await fetchDeptPage(url, log);
+
+      if(html === null){
+        allLevelsOk = false;
+        continue;
+      }
+
+      const pageSubjects = extractSubjectsFromHtml(html);
+      log(`${dept} ${level}: ${pageSubjects.size} official subject code(s) found`, 'ok');
+
+      pageSubjects.forEach((name, code) => {
+        if(!deptSubjects.has(code)) deptSubjects.set(code, name);
+      });
+    }
+
+    validByDept[dept] = deptSubjects;
+
+    if(deptSubjects.size === 0){
+      deptState[dept] = 'unavailable';
+      log(`${dept}: official website data could not be loaded — B.Tech rows using this source cannot be verified`, 'warn');
+    }else if(!allLevelsOk){
+      deptState[dept] = 'partial';
+      log(`${dept}: official website data is partial`, 'warn');
+    }else{
+      deptState[dept] = 'fresh';
+    }
+  }
+
+  return {validByDept, deptState};
+}
+
+/* ============================================================
+   M.TECH SCHEME
+   Uploaded Excel is the ONLY M.Tech source.
+   Expected columns: Subject Code, Subject Name, Semester, Stream
+   ============================================================ */
+function loadMTechScheme(workbook, log){
+  const sheetName = workbook.SheetNames[0];
+  const rows = XLSX.utils.sheet_to_json(
+    workbook.Sheets[sheetName],
+    {header:1, defval:null, raw:true}
+  );
+
+  const header = (rows[0] || []).map(h =>
+    String(h || '').trim().toLowerCase()
+  );
+
+  const codeCol = header.findIndex(h =>
+    h.includes('subject') && h.includes('code')
+  );
+  const nameCol = header.findIndex(h =>
+    h.includes('subject') && h.includes('name')
+  );
+  const streamCol = header.findIndex(h =>
+    h === 'stream' || h.includes('stream')
+  );
+
+  if(codeCol === -1 || nameCol === -1 || streamCol === -1){
+    log(`M.Tech scheme file: expected columns 'Subject Code'/'Subject Name'/'Stream' not found — M.Tech verification cannot be performed`, 'err');
+    return {};
+  }
+
+  const byStream = {};
+  let count = 0;
+
+  for(const row of rows.slice(1)){
+    if(!row) continue;
+
+    const code = normalizeCode(row[codeCol]);
+    const rawName = row[nameCol];
+    const stream = row[streamCol];
+
+    if(!code || rawName === null || rawName === undefined || !stream) continue;
+
+    const name = String(rawName).trim().toUpperCase();
+    if(!name) continue;
+
+    const streamKey = String(stream).trim();
+    if(!byStream[streamKey]) byStream[streamKey] = new Map();
+
+    byStream[streamKey].set(code, name);
+    count++;
+  }
+
+  log(`M.Tech scheme: loaded ${count} code(s) across streams ${Object.keys(byStream).join(', ')}`, 'ok');
+  return byStream;
+}
+
+/* ============================================================
+   CLASSIFICATION
+   Invalid = no match. The caller leaves the original Excel row
+   untouched in that case.
+   ============================================================ */
+function classifyCode(rawCode, masterMap, sourceUnavailable){
+  const code = normalizeCode(rawCode);
+
+  if(!code){
+    return {status:'invalid', code:rawCode, name:null};
+  }
+
+  if(sourceUnavailable){
+    return {status:'skipped', code:rawCode, name:null};
+  }
+
+  /* Exact match. */
+  if(masterMap.has(code)){
+    return {
+      status:'valid',
+      code:rawCode,
+      name:masterMap.get(code)
+    };
+  }
+
+  /* I -> 1 correction. */
+  const oneNorm = code.split('I').join('1');
+  if(oneNorm !== code && masterMap.has(oneNorm)){
+    return {
+      status:'corrected',
+      code:oneNorm,
+      name:masterMap.get(oneNorm),
+      from:rawCode
+    };
+  }
+
+  /* One-edit correction, only when there is exactly one candidate. */
+  const bases = oneNorm !== code ? [code, oneNorm] : [code];
+  const candidateSet = new Set();
+
+  for(const base of bases){
+    for(const masterCode of masterMap.keys()){
+      if(levenshtein(base, masterCode) <= 1){
+        candidateSet.add(masterCode);
+      }
+    }
+  }
+
+  const candidates = [...candidateSet];
+  if(candidates.length === 1){
+    const correctedCode = candidates[0];
+    return {
+      status:'corrected',
+      code:correctedCode,
+      name:masterMap.get(correctedCode),
+      from:rawCode
+    };
+  }
+
+  return {status:'invalid', code:rawCode, name:null};
+}
+
+/* ============================================================
+   VERIFY + AUTO-CORRECT
+   ============================================================ */
+async function verifyAndCorrectRows(rows, mtechScheme, log){
+  const {validByDept, deptState} = await buildMasterList(log);
+
+  let validCount = 0;
+  let correctedCount = 0;
+  let invalidCount = 0;
+  let skippedCount = 0;
+  let namedCount = 0;
+  let nameUnknownCount = 0;
+
+  for(const row of rows){
+    const originalCode = row['Subject code'];
+    const code = normalizeCode(originalCode);
+    const isMTechScope = code && code.startsWith('3');
+
+    let masterMap;
+    let sourceUnavailable = false;
+
+    if(isMTechScope){
+      /* ========================================================
+         M.TECH: uploaded Excel ONLY
+         ======================================================== */
+      masterMap = mtechScheme[row['Stream']] || new Map();
+      sourceUnavailable = false;
+    }else{
+      /* ========================================================
+         B.TECH: official website ONLY
+         ======================================================== */
+      const streamDepts = STREAM_TO_DEPARTMENTS[row['Stream']] || [];
+      const codeDepts = departmentsForCode(code);
+      const depts = [...new Set([...streamDepts, ...codeDepts])];
+
+      masterMap = new Map();
+
+      for(const dept of depts){
+        const deptMap = validByDept[dept] || new Map();
+        deptMap.forEach((name, subjectCode) => {
+          if(!masterMap.has(subjectCode)){
+            masterMap.set(subjectCode, name);
+          }
+        });
+      }
+
+      /* No official website data = cannot verify this row. */
+      sourceUnavailable = masterMap.size === 0;
+    }
+
+    const result = classifyCode(
+      originalCode,
+      masterMap,
+      sourceUnavailable
+    );
+
+    row.__verifyStatus = result.status;
+
+    if(result.status === 'valid'){
+      /* Keep the original valid code, replace name only. */
+      if(result.name){
+        row['Subject Name'] = result.name.toUpperCase();
+        namedCount++;
+      }else{
+        /* Should not normally happen because official sources require names. */
+        nameUnknownCount++;
+      }
+      validCount++;
+
+    }else if(result.status === 'corrected'){
+      row.__originalCode = result.from;
+      row['Subject code'] = result.code;
+
+      if(result.name){
+        row['Subject Name'] = result.name.toUpperCase();
+        namedCount++;
+      }else{
+        nameUnknownCount++;
+      }
+      correctedCount++;
+
+    }else if(result.status === 'invalid'){
+      /*
+       * IMPORTANT:
+       * Do NOT write "INVALID CODE".
+       * Keep both Subject code and Subject Name exactly as they
+       * came from the Excel input.
+       */
+      invalidCount++;
+
+    }else{
+      /* Official source unavailable. Keep row unchanged. */
+      skippedCount++;
+    }
+  }
+
+  const unavailableDepts = Object.entries(deptState)
+    .filter(([, state]) => state === 'unavailable')
+    .map(([dept]) => dept);
+
+  const partialDepts = Object.entries(deptState)
+    .filter(([, state]) => state === 'partial')
+    .map(([dept]) => dept);
+
+  /*
+   * Verification must be complete. If an official B.Tech source could not
+   * be loaded, stop rather than silently producing a partially verified file.
+   */
+  if(unavailableDepts.length || partialDepts.length){
+    throw new Error(
+      `Official UVPCE verification was incomplete. ` +
+      `Unavailable: ${unavailableDepts.join(', ') || 'none'}; ` +
+      `Partial: ${partialDepts.join(', ') || 'none'}. ` +
+      `Start server.js and run again so every B.Tech code is checked against ` +
+      `the official UVPCE website.`
+    );
+  }
+
+  if(skippedCount > 0){
+    throw new Error(
+      `${skippedCount} row(s) could not be verified. ` +
+      `Verification stopped instead of silently skipping them.`
+    );
+  }
+
+  log(
+    `verification complete — ${validCount} valid, ${correctedCount} auto-corrected, ${invalidCount} unmatched, 0 skipped`,
+    'ok'
+  );
+
+  log(
+    `name mapping — ${namedCount} row(s) received an official UPPERCASE Subject Name`,
+    namedCount ? 'ok' : 'warn'
+  );
+
+  return {
+    validCount,
+    correctedCount,
+    invalidCount,
+    skippedCount,
+    namedCount,
+    nameUnknownCount,
+    unavailableDepts,
+    partialDepts
+  };
+}
+
+
+/* ============================================================
+   UI WIRING
+   ============================================================ */
+const state = { coord:null, faculty:null, workload:null, mtech:null };
+const els = {
+  coord:{slot:document.getElementById('slot-coord'), input:document.getElementById('file-coord'), desc:document.getElementById('desc-coord'), status:document.getElementById('status-coord')},
+  faculty:{slot:document.getElementById('slot-faculty'), input:document.getElementById('file-faculty'), desc:document.getElementById('desc-faculty'), status:document.getElementById('status-faculty')},
+  workload:{slot:document.getElementById('slot-workload'), input:document.getElementById('file-workload'), desc:document.getElementById('desc-workload'), status:document.getElementById('status-workload')},
+  mtech:{slot:document.getElementById('slot-mtech'), input:document.getElementById('file-mtech'), desc:document.getElementById('desc-mtech'), status:document.getElementById('status-mtech')},
+};
+const runBtn = document.getElementById('runBtn');
+const runHint = document.getElementById('runHint');
+const consoleEl = document.getElementById('console');
+const errorBanner = document.getElementById('errorBanner');
+const results = document.getElementById('results');
+const statGrid = document.getElementById('statGrid');
+const downloadBtn = document.getElementById('downloadBtn');
+const warnNote = document.getElementById('warnNote');
+const verifyToggle = document.getElementById('verifyToggle');
+
+function fmtBytes(b){ return b<1024 ? b+' B' : (b/1024).toFixed(1)+' KB'; }
+
+function handleFile(key, file){
+  state[key] = file;
+  const {slot, desc, status} = els[key];
+  slot.classList.add('filled');
+  desc.textContent = `${file.name} · ${fmtBytes(file.size)}`;
+  status.textContent = 'ready';
+  updateRunButton();
+}
+
+/* ============================================================
+   TEMPLATE DOWNLOADS (requirement 1) — built client-side with
+   SheetJS to exactly match the column layout each parser expects.
+   ============================================================ */
+function downloadTemplate(key){
+  const wb = XLSX.utils.book_new();
+
+  if(key === 'coord'){
+    const data = [
+      ['Sr. No.', 'Stream', 'Subject code', 'Subject Coordinator'],
+      [1, 'CE/IT', '2CEIT401', 'Prof. Example Name'],
+      [2, 'CE-AI', '2CEAI603', 'Dr. Example Two / Prof. Example Three'],
+      [3, 'CSBS', '2CSBS4101', 'Prof. Example Four'],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    ws['!cols'] = [{wch:8},{wch:14},{wch:16},{wch:32}];
+    XLSX.utils.book_append_sheet(wb, ws, 'Course Coordinators');
+    XLSX.writeFile(wb, 'template_subject_coordinators.xlsx');
+
+  } else if(key === 'faculty'){
+    const data = [
+      ['Subject full name', 'Lecture Faculty List', 'Lab Faculty List'],
+      ['2CEIT401(OS) (4OS)', 'PROF EXAMPLE NAME, DR EXAMPLE TWO', 'PROF EXAMPLE NAME'],
+      ['2CEAI603(ML) (6ML)', 'PROF EXAMPLE THREE', '-'],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    ws['!cols'] = [{wch:24},{wch:34},{wch:34}];
+    XLSX.utils.book_append_sheet(wb, ws, 'Subject Faculty');
+    XLSX.writeFile(wb, 'template_subject_faculty_list.xlsx');
+
+  } else if(key === 'workload'){
+    const data = [
+      ['Sr.\nNo','Name of\nInstitute','Department','Name of Employee','Designation','Code of\nSubject','Name of Subject','Semester','Work Load (hrs/week)','','','Total\n(hrs/week)'],
+      [null,null,null,null,null,null,null,null,'Theory','Practical','Tutorial',null],
+      [1,'UVPCE','Computer Engineering','EXAMPLE FACULTY NAME','Assistant Professor','2CEIT401','Operating Systems',4,3,2,'',5],
+      [2,'UVPCE','Computer Engineering','EXAMPLE FACULTY NAME','Assistant Professor','2CEAI603','Machine Learning',6,4,0,'',4],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    ws['!cols'] = [{wch:6},{wch:12},{wch:20},{wch:22},{wch:20},{wch:12},{wch:20},{wch:9},{wch:8},{wch:9},{wch:9},{wch:10}];
+    ws['!merges'] = [
+      {s:{r:0,c:8}, e:{r:0,c:10}}, // "Work Load (hrs/week)" spans Theory/Practical/Tutorial
+    ];
+    XLSX.utils.book_append_sheet(wb, ws, 'Workload');
+    XLSX.writeFile(wb, 'template_workload.xlsx');
+
+  } else if(key === 'mtech'){
+    const data = [
+      ['Subject Code', 'Subject Name', 'Semester', 'Stream'],
+      ['3CEAI202', 'APPLIED DEEP NEURAL NETWORK', 'II', 'CE-AI'],
+      ['3CEIT211', 'ADVANCED DATABASE MANAGEMENT SYSTEMS', 'II', 'CE/IT'],
+      ['3OS201', 'ENGLISH LANGUAGE & COMMUNICATION SKILLS', 'II', 'CE-AI'],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    ws['!cols'] = [{wch:14},{wch:38},{wch:10},{wch:10}];
+    XLSX.utils.book_append_sheet(wb, ws, 'All Courses');
+    XLSX.writeFile(wb, 'template_mtech_subject_scheme.xlsx');
+  }
+}
+
+Object.entries(els).forEach(([key, {slot, input}])=>{
+  input.addEventListener('change', e=>{ if(e.target.files[0]) handleFile(key, e.target.files[0]); });
+  slot.addEventListener('click', e=>{
+    if(e.target.closest('.tmpl-btn')) return; // template button handles its own click
+    input.click();
+  });
+  slot.addEventListener('dragover', e=>{ e.preventDefault(); slot.classList.add('dragover'); });
+  slot.addEventListener('dragleave', ()=> slot.classList.remove('dragover'));
+  slot.addEventListener('drop', e=>{
+    e.preventDefault(); slot.classList.remove('dragover');
+    if(e.dataTransfer.files[0]) handleFile(key, e.dataTransfer.files[0]);
+  });
+});
+
+document.querySelectorAll('.tmpl-btn').forEach(btn=>{
+  btn.addEventListener('click', e=>{
+    e.preventDefault();
+    e.stopPropagation();
+    downloadTemplate(btn.dataset.key);
+  });
+});
+
+function updateRunButton(){
+  const allSet = state.coord && state.faculty && state.workload;
+  runBtn.disabled = !allSet;
+  runHint.textContent = allSet ? 'ready to process' : 'upload the 3 required files to enable';
+}
+
+function logLine(msg, cls){
+  const line = document.createElement('div');
+  line.className = 'log-line';
+  const t = document.createElement('span'); t.className='t'; t.textContent='›';
+  const m = document.createElement('span'); if(cls) m.className=cls; m.textContent=msg;
+  line.appendChild(t); line.appendChild(m);
+  consoleEl.appendChild(line);
+  consoleEl.scrollTop = consoleEl.scrollHeight;
+}
+
+function readFileAsWorkbook(file){
+  return new Promise((resolve, reject)=>{
+    const reader = new FileReader();
+    reader.onload = e=>{
+      try{
+        const data = new Uint8Array(e.target.result);
+        const wb = XLSX.read(data, {type:'array'});
+        resolve(wb);
+      }catch(err){ reject(err); }
+    };
+    reader.onerror = ()=> reject(reader.error);
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+let lastFinalRows = null;
+let lastVerifyStats = null;
+
+runBtn.addEventListener('click', async ()=>{
+  errorBanner.classList.remove('show');
+  results.classList.remove('show');
+  consoleEl.innerHTML = '';
+  consoleEl.classList.add('show');
+  runBtn.disabled = true;
+
+  try{
+    logLine('reading workbooks…');
+    const toRead = [
+      readFileAsWorkbook(state.coord),
+      readFileAsWorkbook(state.faculty),
+      readFileAsWorkbook(state.workload),
+    ];
+    if(state.mtech) toRead.push(readFileAsWorkbook(state.mtech));
+    const [coordWb, facWb, wlWb, mtechWb] = await Promise.all(toRead);
+    await sleep(120);
+
+    const coordParsed = loadCoord(coordWb);
+    logLine(`parsed ${coordParsed.sheetName} — ${coordParsed.rows.length} coordinator mapping row(s)`, 'ok');
+    await sleep(100);
+
+    const wlParsed = loadWorkload(wlWb);
+    logLine(`parsed ${wlParsed.sheetName} — aggregated to ${wlParsed.rows.length} faculty-subject pair(s)`, 'ok');
+    await sleep(100);
+
+    const facParsed = loadSubjectFaculty(facWb);
+    logLine(`parsed ${facParsed.sheetName} — ${Object.keys(facParsed.subjNameMap).length} subject name(s), ${facParsed.facRows.length} faculty assignment(s)`, 'ok');
+    await sleep(100);
+
+    logLine('normalizing subject codes (I↔1 typo fix) and faculty names…');
+    await sleep(120);
+
+    const finalRows = buildFinalInput(coordParsed.rows, wlParsed.rows, facParsed.subjNameMap, facParsed.facRows, logLine);
+    logLine(`built final_input — ${finalRows.length} row(s), 0 duplicates`, 'ok');
+
+    let verifyStats = null;
+    if(verifyToggle.checked){
+      let mtechScheme = {};
+      if(mtechWb){
+        mtechScheme = loadMTechScheme(mtechWb, logLine);
+      } else {
+        logLine('no M.Tech scheme file uploaded — M.Tech codes cannot be verified and will remain unchanged', 'warn');
+      }
+      logLine('starting subject-code verification…');
+      verifyStats = await verifyAndCorrectRows(finalRows, mtechScheme, logLine);
+    }
+
+    lastFinalRows = finalRows;
+    lastVerifyStats = verifyStats;
+    showResults(finalRows, verifyStats);
+
+  }catch(err){
+    console.error(err);
+    errorBanner.textContent = 'Could not process these files — ' + (err.message || err) + '. Check that each upload is the correct workbook (coordinators / subject faculty / workload / M.Tech scheme) with its expected sheet and columns.';
+    errorBanner.classList.add('show');
+  }finally{
+    runBtn.disabled = false;
+  }
+});
+
+function sleep(ms){ return new Promise(r=>setTimeout(r, ms)); }
+
+function showResults(rows, verifyStats){
+  const streams = new Set(rows.map(r=>r['Stream']));
+  const coordCount = rows.filter(r=>r['Is Coordinator']).length;
+  const subjects = new Set(rows.map(r=>r['Subject code']));
+
+  statGrid.innerHTML = '';
+  const stats = [
+    [rows.length, 'Total rows'],
+    [streams.size, 'Streams'],
+    [subjects.size, 'Subjects'],
+    [coordCount, 'Coordinator rows'],
+  ];
+  for(const [num, label] of stats){
+    const el = document.createElement('div');
+    el.className = 'stat';
+    el.innerHTML = `<div class="stat-num">${num}</div><div class="stat-label">${label}</div>`;
+    statGrid.appendChild(el);
+  }
+  if(verifyStats){
+    const extra = [
+      [verifyStats.correctedCount, 'Auto-corrected', 'fix'],
+      [verifyStats.invalidCount, 'Flagged invalid', 'flag'],
+    ];
+    for(const [num, label, cls] of extra){
+      const el = document.createElement('div');
+      el.className = 'stat';
+      el.innerHTML = `<div class="stat-num ${cls}">${num}</div><div class="stat-label">${label}</div>`;
+      statGrid.appendChild(el);
+    }
+  }
+
+  results.classList.add('show');
+
+  const notes = [];
+  if(verifyStats && verifyStats.unavailableDepts.length){
+    notes.push(`Official UVPCE data could not be loaded for ${verifyStats.unavailableDepts.join(', ')}. Those rows were left unchanged and were NOT counted as invalid.`);
+  }
+  if(verifyStats && verifyStats.partialDepts.length){
+    notes.push(`Official UVPCE data was only partially loaded for ${verifyStats.partialDepts.join(', ')}. Rows depending on missing source data were left unchanged.`);
+  }
+  if(verifyStats && verifyStats.nameUnknownCount > 0){
+    notes.push(`${verifyStats.nameUnknownCount} row(s) matched a code but did not contain an official subject name.`);
+  }
+  if(notes.length){
+    warnNote.style.display = 'block';
+    warnNote.textContent = notes.join(' ');
+  } else {
+    warnNote.style.display = 'none';
+  }
+}
+
+/* ============================================================
+   STYLED EXPORT (ExcelJS — needed for cell fill colors; the free
+   SheetJS build used for reading can't write cell styles)
+   ============================================================ */
+downloadBtn.addEventListener('click', async ()=>{
+  if(!lastFinalRows) return;
+  downloadBtn.disabled = true;
+  try{
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('final_input');
+
+    const headers = ['Stream','Subject code','Subject Name','Faculty name','Is Coordinator','Theory Workload','Lab Workload','Total Workload'];
+    ws.addRow(headers);
+    ws.getRow(1).eachCell(cell=>{
+      cell.font = { bold:true, color:{ argb:'FFFFFFFF' }, name:'Arial' };
+      cell.fill = { type:'pattern', pattern:'solid', fgColor:{ argb:'FF2F3B52' } };
+      cell.alignment = { horizontal:'center', vertical:'middle' };
+    });
+
+    lastFinalRows.forEach((r, i)=>{
+      const row = ws.addRow([
+        r['Stream'], r['Subject code'], r['Subject Name'], r['Faculty name'],
+        r['Is Coordinator'], r['Theory Workload'], r['Lab Workload'], r['Total Workload'],
+      ]);
+      row.eachCell(cell=>{ cell.font = { name:'Arial' }; });
+
+      const codeCell = row.getCell(2);
+      if(r.__verifyStatus === 'invalid'){
+        codeCell.fill = { type:'pattern', pattern:'solid', fgColor:{ argb:'FFFFC7CE' } }; // red — unverified/missing
+      } else if(r.__verifyStatus === 'corrected'){
+        codeCell.fill = { type:'pattern', pattern:'solid', fgColor:{ argb:'FFFFFF00' } }; // yellow — auto-corrected
+      }
+      // valid / skipped: no fill — standard styling applies
+    });
+
+    ws.columns.forEach(col=>{
+      let maxLen = 10;
+      col.eachCell({ includeEmpty:true }, cell=>{
+        const len = cell.value!==null && cell.value!==undefined ? String(cell.value).length : 0;
+        if(len + 3 > maxLen) maxLen = len + 3;
+      });
+      col.width = Math.min(Math.max(maxLen, 10), 40);
+    });
+
+    ws.views = [{ state:'frozen', ySplit:1 }];
+
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'final_input.xlsx';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }catch(err){
+    console.error(err);
+    errorBanner.textContent = 'Could not build the Excel file — ' + (err.message || err);
+    errorBanner.classList.add('show');
+  }finally{
+    downloadBtn.disabled = false;
+  }
+});
+</script>
+</body>
+</html>
